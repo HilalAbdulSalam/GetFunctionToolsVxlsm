@@ -1,0 +1,84 @@
+Option Explicit
+
+Sub Add_Gitcodes()
+
+Dim FunctionNames As Variant
+Dim moduleName As String
+Dim vbProjSource As Object, vbProjTool As Object
+Dim vbCompSource As Object, vbCompTool As Object
+Dim FunctionCode As String
+Dim StartLine As Long, TotalLines As Long
+Dim wbSource As Workbook
+Dim ModName As String
+Dim codeMod As Object
+Dim Found As Integer
+Dim I As Long, j As Long, k As Long
+Const vbext_pk_Proc As Long = 0
+Const vbext_ct_StdModule As Long = 1
+Dim Current_Wb As Workbook
+
+FunctionNames = Split("CallGitHubAPI", ";")
+
+If UserForm1.ListBox1.ListIndex <> -1 Then ' Check if a module is selected
+    ModName = UserForm1.ListBox1.Value
+Else
+    MsgBox "Please select a module from the list.", vbExclamation
+    Exit Sub
+End If
+
+Dim MissingFunctions As String
+Set Current_Wb = ActiveWorkbook
+' Access the VBA project of the current workbook (ThisWorkbook)
+Set vbProjTool = Current_Wb.VBProject
+Set vbCompTool = vbProjTool.VBComponents(ModName)
+
+
+' Access the VBA project of the source workbook
+Set vbProjSource = ThisWorkbook.VBProject
+Found = 0
+
+For k = 0 To UBound(FunctionNames)
+    FunctionCode = ""
+    For I = 1 To vbProjSource.VBComponents.count
+        Set vbCompSource = vbProjSource.VBComponents(I)
+    
+        ' Check if the component is a standard module
+        If vbCompSource.Type = vbext_ct_StdModule Then
+            Set codeMod = vbCompSource.codeModule
+            For j = 1 To codeMod.CountOfLines
+                If codeMod.ProcOfLine(j, vbext_pk_Proc) = FunctionNames(k) Then
+                    moduleName = vbCompSource.Name ' Get the module name where the function is found
+                    ' Extract the function code from the source module
+                    With vbProjSource.VBComponents(moduleName).codeModule
+                        StartLine = .ProcStartLine(FunctionNames(k), vbext_pk_Proc) ' Locate function start
+                        TotalLines = .ProcCountLines(FunctionNames(k), vbext_pk_Proc) ' Count function lines
+                        FunctionCode = .lines(StartLine, TotalLines) ' Extract function code
+                        
+                        ' Insert the function code into the destination module
+                        With vbCompTool.codeModule
+                            .InsertLines .CountOfLines + 1, FunctionCode
+                        End With
+                        
+                    End With
+                    Exit For
+                End If
+            Next j
+            If FunctionCode <> "" Then Exit For
+        End If
+    Next I
+    
+    If FunctionCode = "" Then
+        MissingFunctions = IIf(MissingFunctions = "", FunctionNames(k), MissingFunctions & "," & FunctionNames(k))
+    End If
+    
+    
+Next k
+
+If MissingFunctions <> "" Then
+    MsgBox "Functions '" & MissingFunctions & "' not found in any modules.", vbExclamation
+    Exit Sub
+End If
+
+MsgBox "Done!", vbInformation
+End Sub
+
