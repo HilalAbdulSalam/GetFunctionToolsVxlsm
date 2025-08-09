@@ -1,0 +1,128 @@
+Option Explicit
+
+
+Function Upload2Repo()
+
+Dim RepoName As String
+Dim moduleName As String
+Dim repoArr As Variant
+Dim moduleContent As String
+Dim codeModule As Object
+Dim I As Long
+Dim Found As Integer
+
+wbName = ActiveWorkbook.Name
+RepoName = RemoveSpecialCharactersAndNumbers(wbName)
+
+
+
+End Function
+
+
+
+
+Function pullmodule()
+Dim RepoName As String
+Dim moduleName As String
+Dim repoArr As Variant
+Dim moduleContent As String
+Dim codeModule As Object
+Dim I As Long
+Dim Found As Integer
+
+Dim wbName As String
+Dim Arr As Variant
+wbName = ActiveWorkbook.Name
+RepoName = RemoveSpecialCharactersAndNumbers(wbName)
+
+repoArr = ReadGitHubRepositoriesNameID()   'checking repo present in git
+Found = 0
+If IsArray(repoArr) Then
+    For I = 1 To UBound(repoArr)
+        If repoArr(I, 1) = RepoName Then
+            Found = 1
+            Exit For
+        End If
+    Next I
+End If
+If Found = 0 And RepoName <> "" Then
+    MsgBox "Repository not found!", vbExclamation, "Error"
+    Exit Function
+End If
+
+Arr = GetSingleRepo_allModuleApi(RepoName)
+
+For I = LBound(Arr) To UBound(Arr)
+    moduleName = Arr(I)
+    ' Get module content from API
+    moduleContent = GetModuleCodeInApi(RepoName, moduleName)
+    
+    ' Add or update module
+    Set codeModule = AddOrUpdateModule(moduleName)
+    If Not codeModule Is Nothing Then
+        With codeModule
+            If .CountOfLines > 0 Then
+                .DeleteLines 1, .CountOfLines
+            End If
+            .AddFromString moduleContent
+        End With
+    Else
+        MsgBox "Error: Unable to update module " & moduleName, vbCritical
+    End If
+Next I
+
+MsgBox "Done!", vbInformation
+
+End Function
+
+
+Function AddOrUpdateModule(moduleName As String) As Object
+Dim codeModule As Object
+On Error Resume Next
+Set codeModule = ActiveWorkbook.VBProject.VBComponents(moduleName).codeModule
+If codeModule Is Nothing Then
+    Set codeModule = ThisWorkbook.VBProject.VBComponents.Add(1).codeModule ' 1 = Standard Module
+    codeModule.Parent.Name = moduleName
+End If
+On Error GoTo 0
+Set AddOrUpdateModule = codeModule
+End Function
+
+
+
+
+Public Function URLEncode(ByRef txt As String) As String
+    Dim buffer As String, I As Long, c As Long, n As Long
+    buffer = String$(Len(txt) * 12, "%")
+ 
+    For I = 1 To Len(txt)
+        c = AscW(Mid$(txt, I, 1)) And 65535
+ 
+        Select Case c
+            Case 48 To 57, 65 To 90, 97 To 122, 45, 46, 95  ' Unescaped 0-9A-Za-z-._ '
+                n = n + 1
+                Mid$(buffer, n) = ChrW(c)
+            Case Is <= 127            ' Escaped UTF-8 1 bytes U+0000 to U+007F '
+                n = n + 3
+                Mid$(buffer, n - 1) = Right$(Hex$(256 + c), 2)
+            Case Is <= 2047           ' Escaped UTF-8 2 bytes U+0080 to U+07FF '
+                n = n + 6
+                Mid$(buffer, n - 4) = Hex$(192 + (c \ 64))
+                Mid$(buffer, n - 1) = Hex$(128 + (c Mod 64))
+            Case 55296 To 57343       ' Escaped UTF-8 4 bytes U+010000 to U+10FFFF '
+                I = I + 1
+                c = 65536 + (c Mod 1024) * 1024 + (AscW(Mid$(txt, I, 1)) And 1023)
+                n = n + 12
+                Mid$(buffer, n - 10) = Hex$(240 + (c \ 262144))
+                Mid$(buffer, n - 7) = Hex$(128 + ((c \ 4096) Mod 64))
+                Mid$(buffer, n - 4) = Hex$(128 + ((c \ 64) Mod 64))
+                Mid$(buffer, n - 1) = Hex$(128 + (c Mod 64))
+            Case Else                 ' Escaped UTF-8 3 bytes U+0800 to U+FFFF '
+                n = n + 9
+                Mid$(buffer, n - 7) = Hex$(224 + (c \ 4096))
+                Mid$(buffer, n - 4) = Hex$(128 + ((c \ 64) Mod 64))
+                Mid$(buffer, n - 1) = Hex$(128 + (c Mod 64))
+        End Select
+    Next
+    URLEncode = Left$(buffer, n)
+End Function
