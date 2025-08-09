@@ -1,0 +1,90 @@
+Option Explicit
+
+Function M_Transpose(inputArray As Variant) As Variant
+
+Dim outputArray() As Variant
+Dim numRows As Long, numCols As Long
+Dim I As Long, j As Long
+
+numRows = UBound(inputArray, 2)
+numCols = UBound(inputArray, 1)
+
+ReDim outputArray(1 To numRows, 1 To numCols)
+For I = 1 To numRows
+    For j = 1 To numCols
+        outputArray(I, j) = inputArray(j, I)
+    Next j
+Next I
+M_Transpose = outputArray
+End Function
+ 
+Function EncodeBase64(inputString As String) As String
+    Dim arrData() As Byte
+    Dim objXML As Object
+    Dim objNode As Object
+
+    ' Convert the input string to a byte array
+    arrData = StrConv(inputString, vbFromUnicode)
+
+    ' Create an XML object to encode the data
+    Set objXML = CreateObject("MSXML2.DOMDocument")
+    Set objNode = objXML.createElement("b64")
+    objNode.DataType = "bin.base64"
+    objNode.nodeTypedValue = arrData
+    EncodeBase64 = Replace(objNode.Text, vbLf, "") ' Remove newlines (if any)
+End Function
+
+Function EncodeBase64Binary(arrData() As Byte) As String
+    Dim objXML As Object
+    Dim objNode As Object
+    Set objXML = CreateObject("MSXML2.DOMDocument")
+    Set objNode = objXML.createElement("b64")
+    objNode.DataType = "bin.base64"
+    objNode.nodeTypedValue = arrData
+    EncodeBase64Binary = objNode.Text
+    Set objNode = Nothing
+    Set objXML = Nothing
+End Function
+Function CallGitHubAPI(ApiUrl As String, Method As String, Optional Body As String = "") As String
+Dim http As Object
+Set http = CreateObject("WinHttp.WinHttpRequest.5.1")
+
+With http
+    .Open Method, ApiUrl, False
+    .setRequestHeader "Authorization", "token " & token
+    .setRequestHeader "Content-Type", "application/json"
+    If Body <> "" Then
+        .send Body
+    Else
+        .send
+    End If
+    
+    If .Status >= 200 And .Status < 300 Then
+        CallGitHubAPI = .responseText
+    Else
+        CallGitHubAPI = "Error: " & .Status & " - " & .responseText
+    End If
+End With
+Set http = Nothing
+End Function
+
+Function RemoveSpecialCharactersAndNumbers(inputName As String) As String
+Dim cleanName As String
+Dim I As Integer
+Dim char As String
+
+cleanName = ""
+
+' Loop through each character in the inputName
+For I = 1 To Len(inputName)
+    char = Mid(inputName, I, 1)
+
+    ' Retain only alphabetic characters (remove dot and numbers)
+    If (char >= "A" And char <= "Z") Or (char >= "a" And char <= "z") Then
+        cleanName = cleanName & char
+    End If
+Next I
+
+' Return the cleaned name
+RemoveSpecialCharactersAndNumbers = cleanName
+End Function
