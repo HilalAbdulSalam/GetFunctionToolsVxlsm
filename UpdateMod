@@ -1,0 +1,187 @@
+Option Explicit
+
+Function GetAllRepo() As String  'get Repo in listbox(page3)
+Dim Arr As Variant
+
+Dim I As Long
+UserForm1.ListBoxRepoName.Clear
+Arr = ReadGitHubRepositoriesNameID()   'Get RepoName in Git
+
+If IsArray(Arr) Then
+    For I = 1 To UBound(Arr)
+        If Arr(I, 1) <> "" Then
+            UserForm1.ListBoxRepoName.AddItem Arr(I, 1)
+        End If
+    Next I
+End If
+
+End Function
+
+Function GetSingleRepo_allModule()
+Dim RepoName As String
+Dim Arr As Variant
+Dim I As Long
+UserForm1.ListBoxModuleName.Clear
+
+If UserForm1.ListBoxRepoName.ListIndex = -1 Then
+   MsgBox "Please select Repo name the list.", vbExclamation, "Validation Error"
+   Exit Function
+End If
+       
+If UserForm1.ListBoxRepoName.ListIndex <> -1 Then
+   RepoName = UserForm1.ListBoxRepoName.Value
+   Arr = GetSingleRepo_allModuleApi(RepoName)
+End If
+
+If IsArray(Arr) Then
+    For I = 1 To UBound(Arr)
+        UserForm1.ListBoxModuleName.AddItem Arr(I)
+    Next I
+End If
+End Function
+'Read Repo Module Code
+Function ReadModuleCode()
+Dim RepoName As String
+Dim Arr As Variant
+Dim I As Long
+Dim moduleName As String
+Dim Data As String
+
+If UserForm1.ListBoxRepoName.ListIndex = -1 Then
+   MsgBox "Please select Repo name the list.", vbExclamation, "Validation Error"
+   Exit Function
+End If
+
+If UserForm1.ListBoxModuleName.ListIndex = -1 Then
+   MsgBox "Please select Module name the list.", vbExclamation, "Validation Error"
+   Exit Function
+End If
+        
+RepoName = UserForm1.ListBoxRepoName.Value
+moduleName = UserForm1.ListBoxModuleName.Value
+
+Data = GetModuleCodeInApi(RepoName, moduleName)
+
+UserForm1.TextBox1.Text = Data
+
+End Function
+
+'Get Single Repo allModule name in github using Api(Read Module)
+Function GetSingleRepo_allModuleApi(RepoName As String) As Variant
+Dim url As String
+Dim responseText As String
+Dim lines() As String
+Dim line As Variant
+Dim moduleName As String
+Dim count As Long
+Dim Arr As Variant
+
+' Construct the GET request URL
+url = "https://api.github.com/repos/" & owner & "/" & RepoName & "/contents/"
+
+' Call the API
+responseText = CallGitHubAPI(url, "GET")
+
+' Handle the response
+If Left(responseText, 5) = "Error" Then
+    MsgBox "Error while creating repository: " & vbCrLf & responseText, vbCritical
+    Exit Function
+End If
+
+' Split the response into id
+lines = Split(responseText, "},")
+
+count = 0
+ReDim Arr(0) ' Start with an empty array
+For Each line In lines
+   If InStr(line, "name" & Chr(34) & ":" & Chr(34)) > 0 Then
+        count = count + 1
+        ReDim Preserve Arr(1 To count)
+        moduleName = Split(Split(line, "name" & Chr(34) & ":" & Chr(34))(1), Chr(34) & ",")(0)
+        Arr(count) = moduleName
+    End If
+Next line
+
+GetSingleRepo_allModuleApi = Arr
+End Function
+
+Function GetModuleCodeInApi(RepoName As String, path As String) As String
+Dim url As String
+Dim responseText As String
+Dim decodedContent As String
+Dim base64Content As String
+Dim parts() As String
+
+' Construct the GET request URL
+url = "https://api.github.com/repos/" & owner & "/" & RepoName & "/contents/" & path
+
+' Call the API
+responseText = CallGitHubAPI(url, "GET")
+
+' Handle the response
+If Left(responseText, 5) = "Error" Then
+    MsgBox "Error while creating repository: " & vbCrLf & responseText, vbCritical
+    Exit Function
+End If
+
+parts = Split(responseText, "content" & Chr(34) & ":" & Chr(34))
+If UBound(parts) > 0 Then
+    'base64Content = Split(parts(1), """")(0)
+    base64Content = Replace(Split(parts(1), Chr(34))(0), "\n", Chr(10))
+    decodedContent = DecodeBase64(base64Content)
+    GetModuleCodeInApi = decodedContent
+Else
+    GetModuleCodeInApi = "Error: " & responseText
+    Exit Function
+End If
+
+
+End Function
+
+'update code page3
+Function updatecodeApi()
+Dim RepoName As String
+Dim moduleName As String
+Dim I As Long
+Dim moduleContent As String
+
+If UserForm1.ListBoxRepoName.ListIndex = -1 Then
+    MsgBox "Please select Repo from the list.", vbExclamation, "Validation Error"
+    Exit Function
+End If
+
+If UserForm1.ListBoxModuleName.ListIndex = -1 Then
+    MsgBox "Please select Module from the list.", vbExclamation, "Validation Error"
+    Exit Function
+End If
+
+moduleContent = UserForm1.TextBox1.Text
+If Trim(moduleContent) = "" Then
+   MsgBox "Please click read Code button", vbExclamation, "Validation Error"
+   Exit Function
+End If
+
+RepoName = UserForm1.ListBoxRepoName.Value
+moduleName = UserForm1.ListBoxModuleName.Value
+
+Call updateFileContentInGitHub(RepoName, moduleName, moduleContent) 'update code
+MsgBox "Done!", vbInformation
+
+End Function
+
+Function DecodeBase64(ByVal strData As String) As Byte()
+Dim objXML As Object
+Dim objNode As Object
+
+' Create MSXML2.DOMDocument object using late binding
+Set objXML = CreateObject("MSXML2.DOMDocument.6.0")
+Set objNode = objXML.createElement("b64")
+objNode.DataType = "bin.base64"
+objNode.Text = strData
+
+' Decode Base64 string to byte array
+DecodeBase64 = StrConv(objNode.nodeTypedValue, vbUnicode)
+' Clean up
+Set objNode = Nothing
+Set objXML = Nothing
+End Function
