@@ -1,0 +1,126 @@
+Option Explicit
+Public Const FilePath As String = "C:\Users\hilal\Desktop\Fiverr\Modules.xlsm"
+Public Descriptions As Variant
+
+Sub GetAllModulesAndFunctions()
+
+Dim FunctionName As String
+Dim moduleName As String
+Dim vbProjSource As Object, vbProjTool As Object
+Dim vbCompSource As Object, vbCompTool As Object
+Dim FunctionCode As String
+Dim StartLine As Long, TotalLines As Long
+Dim wbSource As Workbook
+Dim ModName As String
+Dim codeMod As Object
+Dim Found As Integer
+Dim I As Long, j As Long
+Const vbext_pk_Proc As Long = 0
+Const vbext_ct_StdModule As Long = 1
+Dim Current_Wb As Workbook
+
+Set Current_Wb = ActiveWorkbook
+
+If Dir(FilePath) = "" Then
+    MsgBox "File not found: " & FilePath, vbExclamation
+    Exit Sub
+End If
+
+If UserForm1.ListBox1.ListIndex <> -1 Then ' Check if a module is selected
+    ModName = UserForm1.ListBox1.Value
+Else
+    MsgBox "Please select a module from the list.", vbExclamation
+    Exit Sub
+End If
+
+' Get the selected function name from ListBox2
+If UserForm1.ListBox2.ListIndex <> -1 Then ' Check if a function is selected
+    FunctionName = UserForm1.ListBox2.Value
+Else
+    MsgBox "Please select a function from the list.", vbExclamation
+    Exit Sub
+End If
+
+
+Application.ScreenUpdating = False
+On Error Resume Next
+Set wbSource = Workbooks.Open(FilePath)
+On Error GoTo 0
+If wbSource Is Nothing Then
+    MsgBox "Unable to open the file. Please check the file path.", vbExclamation
+    Exit Sub
+End If
+
+' Access the VBA project of the source workbook
+Set vbProjSource = wbSource.VBProject
+Found = 0
+
+For I = 1 To vbProjSource.VBComponents.count
+    Set vbCompSource = vbProjSource.VBComponents(I)
+
+    ' Check if the component is a standard module
+    If vbCompSource.Type = vbext_ct_StdModule Then
+        Set codeMod = vbCompSource.codeModule
+
+        For j = 1 To codeMod.CountOfLines
+            On Error Resume Next
+            If codeMod.ProcOfLine(j, vbext_pk_Proc) = FunctionName Then
+                moduleName = vbCompSource.Name ' Get the module name where the function is found
+                Found = 1
+                Exit For
+            End If
+            On Error GoTo 0
+        Next j
+        If Found = 1 Then Exit For
+    End If
+Next I
+
+If Found = 0 Then
+    MsgBox "Function '" & FunctionName & "' not found in any module of the source workbook.", vbExclamation
+    wbSource.Close SaveChanges:=False
+    Application.ScreenUpdating = True
+    Exit Sub
+End If
+
+' Extract the function code from the source module
+With vbProjSource.VBComponents(moduleName).codeModule
+    StartLine = .ProcStartLine(FunctionName, vbext_pk_Proc) ' Locate function start
+    TotalLines = .ProcCountLines(FunctionName, vbext_pk_Proc) ' Count function lines
+    FunctionCode = .lines(StartLine, TotalLines) ' Extract function code
+End With
+
+' Close the source workbook
+wbSource.Close SaveChanges:=False
+Set wbSource = Nothing
+Application.ScreenUpdating = True
+
+' Access the VBA project of the current workbook (ThisWorkbook)
+Set vbProjTool = Current_Wb.VBProject
+Set vbCompTool = vbProjTool.VBComponents(ModName)
+
+If vbCompTool Is Nothing Then
+    MsgBox "Module '" & ModName & "' not found in the current workbook.", vbExclamation
+    Exit Sub
+End If
+
+' Insert the function code into the destination module
+With vbCompTool.codeModule
+    .InsertLines .CountOfLines + 1, FunctionCode
+End With
+
+MsgBox "Done!", vbInformation
+End Sub
+
+Function Get_Function(iribb As IRibbonControl)
+UserForm1.Show
+End Function
+
+
+'Callback for TMG onAction
+Sub get_TMG(control As IRibbonControl)
+
+Dim path As String
+path = "C:\Users\hilal\Desktop\Fiverr\FPM_V2.xlsm"
+Workbooks.Open (path)
+
+End Sub
